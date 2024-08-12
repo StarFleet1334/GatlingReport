@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gatling Test Analysis</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+        }
+        .dashboard {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .card {
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 16px;
+            width: 600px;
+            background-color: #1e1e1e;
+        }
+        .card h3 {
+            margin-top: 0;
+            color: #ffffff;
+        }
+        .chart {
+            width: 600px;
+            height: 400px;
+        }
+        .explanation {
+            margin-top: 0;
+            color: #aaaaaa;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+<h1>Gatling Test Analysis Dashboard</h1>
+<div class="dashboard">
+    <div class="card">
+        <h3>Failure Rate Analysis</h3>
+        <p class="explanation">This chart shows the failure rate as a percentage for each request type. It helps identify which request types are failing more often, providing insight into potential areas for improvement.</p>
+        <canvas id="failureRateChart" class="chart"></canvas>
+    </div>
+    <div class="card">
+        <h3>Response Time Variability</h3>
+        <p class="explanation">This chart displays the standard deviation of response times for each request type, indicating how much the response times vary. High variability can indicate inconsistent performance, which might need further investigation.</p>
+        <canvas id="responseTimeVariabilityChart" class="chart"></canvas>
+    </div>
+    <div class="card">
+        <h3>Request Rate vs Error Rate Correlation</h3>
+        <p class="explanation">This chart shows the correlation between the request rate and the error rate over time.</p>
+        <canvas id="requestErrorRateCorrelationChart" class="chart"></canvas>
+    </div>
+    <div class="card">
+        <h3>Cumulative Error Count</h3>
+        <p class="explanation">This chart shows the cumulative error count over the duration of the test.</p>
+        <canvas id="cumulativeErrorCountChart" class="chart"></canvas>
+    </div>
+    <div class="card">
+        <h3>Top N Slowest Endpoints</h3>
+        <p class="explanation">This chart shows the top N slowest endpoints based on mean response time.</p>
+        <canvas id="slowestEndpointsChart" class="chart"></canvas>
+    </div>
+    <div class="card">
+        <h3>Response Time Distributions</h3>
+        <p class="explanation">This chart compares the response time distributions of different endpoints.</p>
+        <canvas id="responseTimeDistributionChart" class="chart"></canvas>
+    </div>
+    <div class="card">
+        <h3>Heatmap of Response Times</h3>
+        <p class="explanation">This chart shows a heatmap of response times for different endpoints.</p>
+        <canvas id="responseTimeHeatmap" class="chart"></canvas>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.2.0/dist/chartjs-chart-matrix.min.js"></script>
+<script>
+    var stats = [{"ko":0,"numberOfRequests":{"total":"12","ko":"0","ok":"12"},"meanResponseTime":{"total":"510","ko":"-","ok":"510"},"name":"Home","standardDeviation":{"total":"44","ko":"-","ok":"44"}},{"ko":2,"numberOfRequests":{"total":"3","ko":"2","ok":"1"},"meanResponseTime":{"total":"164","ko":"162","ok":"168"},"name":"Post Redirect 1","standardDeviation":{"total":"3","ko":"2","ok":"0"}},{"ko":0,"numberOfRequests":{"total":"12","ko":"0","ok":"12"},"meanResponseTime":{"total":"163","ko":"-","ok":"163"},"name":"Search","standardDeviation":{"total":"4","ko":"-","ok":"4"}},{"ko":0,"numberOfRequests":{"total":"12","ko":"0","ok":"12"},"meanResponseTime":{"total":"161","ko":"-","ok":"161"},"name":"Page 3","standardDeviation":{"total":"2","ko":"-","ok":"2"}},{"ko":0,"numberOfRequests":{"total":"3","ko":"0","ok":"3"},"meanResponseTime":{"total":"162","ko":"-","ok":"162"},"name":"Form","standardDeviation":{"total":"3","ko":"-","ok":"3"}},{"ko":0,"numberOfRequests":{"total":"12","ko":"0","ok":"12"},"meanResponseTime":{"total":"166","ko":"-","ok":"166"},"name":"Select","standardDeviation":{"total":"14","ko":"-","ok":"14"}},{"ko":0,"numberOfRequests":{"total":"12","ko":"0","ok":"12"},"meanResponseTime":{"total":"165","ko":"-","ok":"165"},"name":"Page 1","standardDeviation":{"total":"12","ko":"-","ok":"12"}},{"ko":0,"numberOfRequests":{"total":"12","ko":"0","ok":"12"},"meanResponseTime":{"total":"178","ko":"-","ok":"178"},"name":"Page 0","standardDeviation":{"total":"31","ko":"-","ok":"31"}},{"ko":0,"numberOfRequests":{"total":"12","ko":"0","ok":"12"},"meanResponseTime":{"total":"161","ko":"-","ok":"161"},"name":"Page 2","standardDeviation":{"total":"4","ko":"-","ok":"4"}},{"ko":0,"numberOfRequests":{"total":"3","ko":"0","ok":"3"},"meanResponseTime":{"total":"160","ko":"-","ok":"160"},"name":"Post","standardDeviation":{"total":"1","ko":"-","ok":"1"}},{"ko":0,"numberOfRequests":{"total":"12","ko":"0","ok":"12"},"meanResponseTime":{"total":"166","ko":"-","ok":"166"},"name":"Home Redirect 1","standardDeviation":{"total":"6","ko":"-","ok":"6"}}];
+    var totalRequests = 105;
+    var okRequests = 103;
+    var koRequests = 2;
+    // Extract failure rate data
+    var failureRateData = {
+        labels: stats.map(path => path.name),
+        datasets: [{
+            label: 'Failure Rate (%)',
+            data: stats.map(path => (path.numberOfRequests.ko / path.numberOfRequests.total) * 100),
+            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+            borderColor: 'rgba(255, 99, 132, 1)',
+            borderWidth: 2
+        }]
+    };
+    // Extract response time variability data
+    var responseTimeVariabilityData = {
+        labels: stats.map(path => path.name),
+        datasets: [{
+            label: 'Standard Deviation (ms)',
+            data: stats.map(path => path.standardDeviation.total),
+            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 2
+        }]
+    };
+    // Extract request rate vs error rate correlation data
+    var requestErrorRateCorrelationData = {
+        labels: Array.from({length: totalRequests}, (_, i) => i + 1),
+        datasets: [{
+            label: 'Request Rate',
+            data: Array(totalRequests).fill(okRequests / totalRequests),
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 2,
+            yAxisID: 'y',
+        }, {
+            label: 'Error Rate',
+            data: Array(totalRequests).fill(koRequests / totalRequests),
+            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+            borderColor: 'rgba(255, 99, 132, 1)',
+            borderWidth: 2,
+            yAxisID: 'y1',
+        }]
+    };
+    // Extract cumulative error count data
+    var cumulativeErrorCountData = {
+        labels: Array.from({length: totalRequests}, (_, i) => i + 1),
+        datasets: [{
+            label: 'Cumulative Errors',
+            data: Array(totalRequests).fill(0).map((_, i) => (i + 1) * (koRequests / totalRequests)),
+            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+            borderColor: 'rgba(255, 99, 132, 1)',
+            borderWidth: 2,
+            pointStyle: 'rectRot',
+            pointRadius: 5,
+            pointHoverRadius: 7
+        }]
+    };
+    // Extract top N slowest endpoints data
+    var slowestEndpoints = stats.sort((a, b) => b.meanResponseTime.total - a.meanResponseTime.total).slice(0, 8);
+    var slowestEndpointsData = {
+        labels: slowestEndpoints.map(path => path.name),
+        datasets: [{
+            label: 'Mean Response Time (ms)',
+            data: slowestEndpoints.map(path => path.meanResponseTime.total),
+            backgroundColor: 'rgba(255, 206, 86, 0.2)',
+            borderColor: 'rgba(255, 206, 86, 1)',
+            borderWidth: 2
+        }]
+    };
+    // Extract response time distribution data
+    var responseTimeDistributionData = {
+        labels: stats.map(path => path.name),
+        datasets: stats.map((path, index) => ({
+            label: path.name,
+            data: [
+                {x: path.meanResponseTime.total, y: path.numberOfRequests.total}
+            ],
+            backgroundColor: 'rgba(' + (index * 30) % 255 + ', 99, 132, 0.2)',
+            borderColor: 'rgba(' + (index * 30) % 255 + ', 99, 132, 1)',
+            borderWidth: 2
+        }))
+    };
+    // Extract heatmap data
+    var heatmapData = {
+        labels: stats.map(path => path.name),
+        datasets: [{
+            label: 'Heatmap',
+            data: stats.map((path, rowIndex) => ({
+                x: rowIndex,
+                y: path.meanResponseTime.total,
+                v: path.numberOfRequests.total
+            })),
+            backgroundColor: (context) => {
+                var value = context.dataset.data[context.dataIndex].v;
+                var alpha = value / totalRequests;
+                return 'rgba(255, 99, 132, ' + alpha + ')';
+            },
+            borderColor: 'rgba(255, 99, 132, 1)',
+            borderWidth: 2,
+            width: (context) => {
+                var a = context.chart.chartArea;
+                var b = context.dataset.data.length;
+                return (a.right - a.left) / b;
+            },
+            height: (context) => {
+                var a = context.chart.chartArea;
+                var b = context.chart.data.labels.length;
+                return (a.bottom - a.top) / b;
+            }
+        }]
+    };
+    // Create the failure rate chart
+    var ctx1 = document.getElementById('failureRateChart').getContext('2d');
+    var failureRateChart = new Chart(ctx1, {
+        type: 'bar',
+        data: failureRateData,
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Failure Rate (%)',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff',
+                        callback: function(value) { return value + '%' }
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Endpoints',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + context.raw.toFixed(2) + '%';
+                        }
+                    }
+                },
+                legend: {
+                    labels: {
+                        color: '#ffffff'
+                    }
+                }
+            }
+        }
+    });
+    // Create the response time variability chart
+    var ctx2 = document.getElementById('responseTimeVariabilityChart').getContext('2d');
+    var responseTimeVariabilityChart = new Chart(ctx2, {
+        type: 'bar',
+        data: responseTimeVariabilityData,
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Standard Deviation (ms)',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Endpoints',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#ffffff'
+                    }
+                }
+            }
+        }
+    });
+    // Create the request rate vs error rate correlation chart
+    var ctx3 = document.getElementById('requestErrorRateCorrelationChart').getContext('2d');
+    var requestErrorRateCorrelationChart = new Chart(ctx3, {
+        type: 'line',
+        data: requestErrorRateCorrelationData,
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Request Rate',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                },
+                y1: {
+                    beginAtZero: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Error Rate',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Request Number',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#ffffff'
+                    }
+                }
+            }
+        }
+    });
+    // Create the cumulative error count chart
+    var ctx4 = document.getElementById('cumulativeErrorCountChart').getContext('2d');
+    var cumulativeErrorCountChart = new Chart(ctx4, {
+        type: 'line',
+        data: cumulativeErrorCountData,
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Cumulative Errors',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Request Number',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                }
+            },
+            elements: {
+                point: {
+                    radius: 5,
+                    hoverRadius: 7,
+                    backgroundColor: 'rgba(255, 99, 132, 1)',
+                    borderColor: '#ffffff'
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#ffffff'
+                    }
+                }
+            }
+        }
+    });
+    // Create the slowest endpoints chart
+    var ctx5 = document.getElementById('slowestEndpointsChart').getContext('2d');
+    var slowestEndpointsChart = new Chart(ctx5, {
+        type: 'bar',
+        data: slowestEndpointsData,
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Mean Response Time (ms)',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Endpoints',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false,
+                    labels: {
+                        color: '#ffffff'
+                    }
+                }
+            }
+        }
+    });
+    // Create the response time distribution chart
+    var ctx6 = document.getElementById('responseTimeDistributionChart').getContext('2d');
+    var responseTimeDistributionChart = new Chart(ctx6, {
+        type: 'scatter',
+        data: responseTimeDistributionData,
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Number of Requests',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Response Time (ms)',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#ffffff'
+                    }
+                }
+            }
+        }
+    });
+    // Create the response time heatmap chart
+    var ctx7 = document.getElementById('responseTimeHeatmap').getContext('2d');
+    var responseTimeHeatmapChart = new Chart(ctx7, {
+        type: 'matrix',
+        data: heatmapData,
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Response Time (ms)',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Endpoints',
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#444444'
+                    },
+                    ticks: {
+                        color: '#ffffff',
+                        callback: function(value) {
+                            return stats[value].name;
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false,
+                    labels: {
+                        color: '#ffffff'
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            var index = context.dataIndex;
+                            return stats[index].name + ': ' + context.raw.y + ' ms (' + context.raw.v + ' requests)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+</body>
+</html>
